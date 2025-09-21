@@ -129,7 +129,7 @@ def get_joystick():
     y_coord = int(map_range(joystick_y.value, 200, 65535, -2, 2))
     return x_coord, y_coord
 
-# Sounds
+# Sounds - CORRIGIDOS (removidos caracteres inválidos)
 def shoot_sound():
     try:
         adafruit_rtttl.play(buzzer, "shoot:d=4,o=5,b=880:8c6")
@@ -138,13 +138,13 @@ def shoot_sound():
     
 def xevious_sound():
     try:
-        adafruit_rtttl.play(buzzer, "Xevious:d=4,o=5,b=160:16c,16c6,16b,16c极,16e6,16c6,16b,16c6,16c,16c6,16a#,16c6,16e6,16c6,16a#,16c6,16c极,16c6,16a,16c6,16e6,16c6,16a,16c6,16c,16c6,16g#,16c6,16e6,16极6,16g#,16c6")
+        adafruit_rtttl.play(buzzer, "Xevious:d=4,o=5,b=160:16c,16c6,16b,16c6,16e6,16c6,16b,16c6,16c,16c6,16a#,16c6,16e6,16c6,16a#,16c6,16c,16c6,16a,16c6,16e6,16c6,16a,16c6,16c,16c6,16g#,16c6,16e6,16c6,16g#,16c6")
     except:
         pass
 
 def galaga_sound():
     try:
-        adafruit_rtttl.play(buzzer, "Galaga:d=4,o=5,b=125:8g4,32c,32p,8d,32f,32p,8e,32c,32极,8d,32a,32p,8g,32c,32p,8极,32f,32p,8e,32c,32p,8g,32b,32p,8c6,32a#,32p,8g#,32g,32p,8f,32d#,32p,8d,32a#4,32p,8a#,32c6,32p,8a#,32g,32p,16a,16f,16d,16g,16e,16d")
+        adafruit_rtttl.play(buzzer, "Galaga:d=4,o=5,b=125:8g4,32c,32p,8d,32f,32p,8e,32c,32p,8d,32a,32p,8g,32c,32p,8d,32f,32p,8e,32c,32p,8g,32b,32p,8c6,32a#,32p,8g#,32g,32p,8f,32d#,32p,8d,32a#4,32p,8a#,32c6,32p,8a#,32g,32p,16a,16f,16d,16g,16e,16d")
     except:
         pass
 
@@ -191,6 +191,14 @@ class Invader:
     def move(self, dx, dy):
         self.x += dx
         self.y += dy
+        
+        # Verifica limites verticais (modo reverso)
+        if self.y < 0:
+            self.y = 0  # Impede que suba além do topo
+        # Verifica limites verticais (modo normal)
+        if self.y >= 58:  # 64 - 6
+            self.y = 57  # Impede que desça além da base
+            
         self.sprite_group.x = self.x
         self.sprite_group.y = self.y
         
@@ -232,7 +240,7 @@ class PlayerShip:
         # Escolhe o bitmap e cor baseado no estado
         if self.exploding:
             current_bitmap = EXPLOSION_BITMAPS[self.explosion_frame]
-            # Diferentes cores para cada frame da explosão
+            # Diferentes colors para cada frame da explosão
             explosion_colors = [0xFFFFFF, 0xFFFF00, 0xFF7F00, 0xFF0000]  # Branco, Amarelo, Laranja, Vermelho
             color = explosion_colors[self.explosion_frame]
         else:
@@ -387,6 +395,7 @@ class Game:
         
         # Reseta direção do movimento
         self.invader_move_direction = 1
+        self.reverse = False  # Reseta o modo reverso
 
     def draw(self):
         if self.game_over:
@@ -488,16 +497,34 @@ class Game:
 
         if edge_hit:
             self.invader_move_direction *= -1
-            # Move todos os invasores para baixo e inverte direção
+            # Move todos os invasores para baixo/baixo dependendo do modo
             for invader in self.invaders:
-                invader.move(0, 2)
+                if not self.reverse:
+                    invader.move(0, 2)  # Move para baixo
+                else:
+                    invader.move(0, -2)  # Move para cima (modo reverso)
 
-        # Verifica se invasores chegaram ao fundo da tela
-        for invader in self.invaders:
-            if invader.y >= 64:  # Chegaram no fundo
-                # Volta para o topo
-                invader.y = 5
-                invader.sprite_group.y = 5
+        # Verifica se invasores chegaram ao fundo da tela (modo normal)
+        if not self.reverse:
+            for invader in self.invaders:
+                if invader.y >= 58:  # Chegaram perto do fundo
+                    # Ativa modo reverso
+                    self.reverse = True
+                    break
+        
+        # Verifica se invasores chegaram ao topo da tela (modo reverso)
+        if self.reverse:
+            top_hit = False
+            for invader in self.invaders:
+                if invader.y <= 0:  # Chegaram no topo
+                    top_hit = True
+                    break
+            
+            if top_hit:
+                # Desativa modo reverso e move para baixo
+                self.reverse = False
+                for invader in self.invaders:
+                    invader.move(0, 2)
 
         # Verifica colisão com jogador
         for invader in self.invaders:
@@ -510,8 +537,8 @@ class Game:
                 self.player_ship.lives -= 1
                 self.player_ship.explode()
                 
-                # Reseta os invasores
-                self.resetinvaders()
+                # Ativa modo reverso quando o jogador é atingido
+                self.reverse = True
                 break
 
         # Enemy shooting - frequência aumentada (8% de chance)
@@ -521,7 +548,7 @@ class Game:
                 self.enemy_projectiles.append(shooter.shoot())
 
         # Remove invasores que saíram completamente da tela
-        self.invaders = [invader for invader in self.invaders if invader.y < 70]
+        self.invaders = [invader for invader in self.invaders if invader.y < 70 and invader.y > -10]
 
         # Remove projéteis inativos
         self.projectiles = [p for p in self.projectiles if p.active]
