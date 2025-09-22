@@ -398,6 +398,14 @@ class Game:
         
         self.resetinvaders()
         galaga_sound()
+    
+    def resetlevel():
+        self.invaders = [] # Clean Invaders list
+        self.projectiles = [] # Clean player projectiles list
+        self.enemy_projectiles = [] # Clean enemy projectiles list
+        self.invader_move_direction = 1 # Top Down
+        self.invader_speed = 0.1
+        self.reverse = False
 
     def resetinvaders(self):
         # Hide old invaders
@@ -455,6 +463,11 @@ class Game:
 
     def update(self, dt):
         if self.game_over:
+            # Wait for button press to restart game
+            if not trigger.value:  # Button pressed
+                time.sleep(0.2)  # Debounce
+                self.reset_game()
+                return
             return
 
         explosion_finished = self.player_ship.update_explosion()
@@ -474,12 +487,12 @@ class Game:
             time.sleep(0.05)
 
         # Move player projectiles (UP)
-        for projectile in self.projectiles[:]:
+        for projectile in self.projectiles[:]:  # Use list copy for safe removal
             if projectile.update(-3):  # UP
                 self.projectiles.remove(projectile)
             else:
                 # Check for collision with invaders
-                for invader in self.invaders[:]:
+                for invader in self.invaders[:]:  # Use list copy for safe removal
                     if (invader.visible and 
                         invader.x <= projectile.x < invader.x + 6 and 
                         invader.y <= projectile.y < invader.y + 6):
@@ -497,8 +510,8 @@ class Game:
                         break
 
         # Move enemy projectiles (DOWN)
-        for projectile in self.enemy_projectiles[:]:
-            if projectile.update(2):  # Move para baixo
+        for projectile in self.enemy_projectiles[:]:  # Use list copy for safe removal
+            if projectile.update(2):  # Move down
                 self.enemy_projectiles.remove(projectile)
             else:
                 # Check for collision with player ship
@@ -548,14 +561,14 @@ class Game:
                     invader.move(0, 2)
 
         player_hit = False
-        for invader in self.invaders[:]:  
+        for invader in self.invaders[:]:  # Use list copy for safe removal
             if (invader.visible and 
                 invader.x < self.player_ship.x + 6 and 
                 invader.x + 6 > self.player_ship.x and
                 invader.y < self.player_ship.y + 6 and 
                 invader.y + 6 > self.player_ship.y):
                 
-                # Remove Colider Invader
+                # Remove colliding invader
                 invader.hide()
                 self.invaders.remove(invader)
                 player_hit = True
@@ -567,27 +580,87 @@ class Game:
             
             self.reverse = True
 
-        # Enemy shooting -  (8%  chance)
+        # Enemy shooting - (8% chance)
         if random.random() < 0.08 and self.invaders and len(self.enemy_projectiles) < 8:
             shooter = random.choice(self.invaders)
             if shooter.visible:
                 self.enemy_projectiles.append(shooter.shoot())
 
-        # Remove invaders outside boundaries
+        # Remove invaders outside boundaries (using list comprehension)
         self.invaders = [invader for invader in self.invaders if invader.y < 70 and invader.y > -10]
 
-        # Remove inactive projectilees
+        # Remove inactive projectiles (using list comprehension)
         self.projectiles = [p for p in self.projectiles if p.active]
         self.enemy_projectiles = [p for p in self.enemy_projectiles if p.active]
 
+        # Level completion check - clear all projectiles when all invaders are defeated
         if not self.invaders and not self.game_over:
+            # Clear all projectiles when level is completed
+            for projectile in list(self.projectiles):  # Convert to list for safe iteration
+                projectile.active = False
+                projectile.draw()
+            self.projectiles = []
+            
+            for projectile in list(self.enemy_projectiles):  # Convert to list for safe iteration
+                projectile.active = False
+                projectile.draw()
+            self.enemy_projectiles = []
+            
             self.level += 1
             self.resetinvaders()
             xevious_sound()
 
+    def reset_game(self):
+        """Reset the game to initial state"""
+        # Clear all game objects using safe iteration
+        for invader in list(self.invaders):  # Convert to list for safe iteration
+            invader.hide()
+        self.invaders = []
+        
+        for projectile in list(self.projectiles):  # Convert to list for safe iteration
+            projectile.active = False
+            projectile.draw()
+        self.projectiles = []
+        
+        for projectile in list(self.enemy_projectiles):  # Convert to list for safe iteration
+            projectile.active = False
+            projectile.draw()
+        self.enemy_projectiles = []
+        
+        # Reset game state
+        self.score = 0
+        self.level = 1
+        self.game_over = False
+        self.reverse = False
+        self.invader_move_direction = 1
+        
+        # Reset player
+        self.player_ship.lives = 3
+        self.player_ship.x = 29
+        self.player_ship.y = 58
+        self.player_ship.exploding = False
+        self.player_ship.explosion_frame = 0
+        self.player_ship.create_sprite()
+        
+        # Update UI
+        self.score_text.text = "0000"
+        
+        # Remove game over text if present
+        for i in range(len(self.main_group) - 1, -1, -1):  # Iterate backwards for safe removal
+            item = self.main_group[i]
+            if isinstance(item, label.Label) and item.text == "GAME OVER":
+                self.main_group.pop(i)
+                break
+        
+        # Reset invaders
+        self.resetinvaders()
+        
+        # Play start sound
+        galaga_sound()
+
     def play(self):
         self.last_update_time = time.monotonic()
-        while not self.game_over:
+        while True:  # Changed to infinite loop to allow restarting
             current_time = time.monotonic()
             dt = current_time - self.last_update_time
             self.last_update_time = current_time
@@ -595,6 +668,8 @@ class Game:
             self.update(dt)
             self.draw()
             time.sleep(0.008)
+
+
             
 # Start Game as Class
 game = Game()
