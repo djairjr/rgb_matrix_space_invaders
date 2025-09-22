@@ -526,25 +526,33 @@ class Game:
                 for invader in self.invaders:
                     invader.move(0, 2)
 
-        # Verifica colisão com jogador
-        for invader in self.invaders:
+        # CORREÇÃO: Verificação de colisão com jogador DEVE remover o invasor
+        player_hit = False
+        for invader in self.invaders[:]:  # Usar cópia da lista para remover durante iteração
             if (invader.visible and 
                 invader.x < self.player_ship.x + 6 and 
                 invader.x + 6 > self.player_ship.x and
                 invader.y < self.player_ship.y + 6 and 
                 invader.y + 6 > self.player_ship.y):
                 
-                self.player_ship.lives -= 1
-                self.player_ship.explode()
-                
-                # Ativa modo reverso quando o jogador é atingido
-                self.reverse = True
-                break
+                # Remove o invasor que colidiu
+                invader.hide()
+                self.invaders.remove(invader)
+                player_hit = True
+                break  # Só processa uma colisão por frame
+
+        # Processa o dano APÓS remover o invasor
+        if player_hit and not self.player_ship.exploding:
+            self.player_ship.lives -= 1
+            self.player_ship.explode()
+            
+            # Ativa modo reverso quando o jogador é atingido
+            self.reverse = True
 
         # Enemy shooting - frequência aumentada (8% de chance)
-        if random.random() < 0.08 and self.invaders and len(self.enemy_projectiles) < 8:  # 8% de chance e até 8 projéteis
+        if random.random() < 0.08 and self.invaders and len(self.enemy_projectiles) < 8:
             shooter = random.choice(self.invaders)
-            if shooter.visible:  # Só atira se estiver visível
+            if shooter.visible:
                 self.enemy_projectiles.append(shooter.shoot())
 
         # Remove invasores que saíram completamente da tela
@@ -554,7 +562,9 @@ class Game:
         self.projectiles = [p for p in self.projectiles if p.active]
         self.enemy_projectiles = [p for p in self.enemy_projectiles if p.active]
 
-        if not self.invaders:
+        # CORREÇÃO: Level up check DEVE vir por último e verificar game_over
+        if not self.invaders and not self.game_over:
+            self.level += 1
             self.resetinvaders()
             xevious_sound()
 
@@ -572,3 +582,4 @@ class Game:
 # Inicia o jogo
 game = Game()
 game.play()
+
